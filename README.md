@@ -57,7 +57,43 @@ pip install -r requirements.txt
 `geopandas`/`pyogrio` traen sus propias dependencias de GDAL/GEOS/PROJ
 precompiladas (wheels) — no hace falta instalar nada del sistema aparte.
 
-## 4. Diferencias conocidas frente a la versión R
+## 4. Deploy web (Streamlit Community Cloud)
+
+El repo ya está en GitHub, público:
+**https://github.com/JDMA-95/reportes-sig-streamlit**
+
+Las capas reales (comprimidas) ya están subidas como assets de un Release
+del mismo repo: **[datos-v1](https://github.com/JDMA-95/reportes-sig-streamlit/releases/tag/datos-v1)**
+— `core/config.py` ya trae la URL de cada una armada a partir de ese
+release, así que no hace falta tocar nada ahí.
+
+Para terminar el deploy (este paso sí requiere entrar con tu cuenta, no lo
+puede hacer un agente):
+
+1. Entrar a **https://share.streamlit.io** con tu cuenta de GitHub
+   (`JDMA-95`) y autorizar el acceso al repo si lo pide.
+2. "New app" → elegir el repo `JDMA-95/reportes-sig-streamlit`, rama `main`,
+   archivo principal `app.py`.
+3. Antes de desplegar, en "Advanced settings" → **Secrets**, agregar:
+   ```toml
+   REPORTES_MODE = "nube"
+   ```
+   (sin esto, la app va a intentar leer de `D:\...`, que no existe en la nube,
+   y todas las capas van a fallar).
+4. Deploy. La primera carga de cada capa se descarga del Release (~367MB en
+   total la primera vez que alguien la usa; después queda cacheada en el
+   propio servidor de Streamlit Cloud hasta que la app se reinicie/duerma).
+
+**Nota de privacidad**: el repo y el Release son **públicos** (decisión
+tomada explícitamente al armar esto) — cualquiera con el link puede ver el
+código y descargar las capas de datos reales (nombres/ubicaciones de
+comunidades indígenas y campesinas). Si en algún momento hace falta
+restringir esto, hay que: (a) pasar el repo a privado, (b) mover los assets
+del Release a un storage privado (ya no bastaría con la URL pública tal
+cual), y (c) en Streamlit Cloud, la app tendría que autenticar la descarga
+(ej. con un token en Secrets).
+
+## 5. Diferencias conocidas frente a la versión R
 
 - **Sin reporte PDF**: la versión R ya tampoco lo expone en su interfaz (se
   quitó por problemas de LaTeX en la red del usuario); si se necesita en
