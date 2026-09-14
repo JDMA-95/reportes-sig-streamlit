@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.venv/
+venv/
+*.egg-info/
+.DS_Store
+
+# Capas reales descargadas en tiempo de ejecución (ver core/io_capas.py) --
+# nunca deben commitearse, viven en un cache local fuera del repo.
+.cache_capas/
