@@ -12,6 +12,9 @@
 # ==============================================================================
 
 import os
+import tempfile
+import urllib.request
+import zipfile
 
 import geopandas as gpd
 import pandas as pd
@@ -19,6 +22,48 @@ import pyogrio
 import shapely
 
 from . import config as cfg
+
+# Cache en DISCO (no por sesión) de las capas descargadas desde una URL (ej.
+# GitHub Releases, modo "nube") -- el .zip es el mismo para cualquier
+# usuario/sesión, así que basta con descargarlo/descomprimirlo UNA vez por
+# proceso del servidor, no una vez por usuario como sí hace falta con el
+# filtro espacial (ver cargar_capa() -- ese sí vive en `cache`, por sesión).
+_DIR_CACHE_DESCARGAS = os.path.join(tempfile.gettempdir(), "reportes_sig_capas_cache")
+
+
+def _descargar_y_extraer_zip(url, nombre):
+    """Descarga un .zip (ej. asset de un GitHub Release) y lo deja
+    descomprimido en una carpeta de cache en disco. Si ya se descargó antes
+    en este proceso, no lo vuelve a bajar."""
+    os.makedirs(_DIR_CACHE_DESCARGAS, exist_ok=True)
+    dir_destino = os.path.join(_DIR_CACHE_DESCARGAS, nombre)
+    marca_lista = os.path.join(dir_destino, ".listo")
+    if os.path.exists(marca_lista):
+        return dir_destino
+
+    os.makedirs(dir_destino, exist_ok=True)
+    zip_path = os.path.join(_DIR_CACHE_DESCARGAS, f"{nombre}.zip")
+    try:
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(dir_destino)
+    except Exception as e:
+        raise RuntimeError(f"No se pudo descargar/extraer la capa '{nombre}' desde {url}: {e}") from e
+    finally:
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+
+    with open(marca_lista, "w") as f:
+        f.write("ok")
+    return dir_destino
+
+
+def _ruta_dentro_de(dir_extraido, extensiones):
+    for raiz, _, archivos in os.walk(dir_extraido):
+        for f in archivos:
+            if f.lower().endswith(extensiones):
+                return os.path.join(raiz, f)
+    return None
 
 
 def cargar_aoi_kml(ruta_kml):
@@ -130,6 +175,25 @@ def cargar_capa(cache, nombre, aoi=None):
 
     if cfg.MODO_DATOS == "demo":
         valor = _cargar_capa_demo(nombre, capa_cfg)
+    elif cfg.MODO_DATOS == "nube":
+        # Modo para el deploy público (Streamlit Community Cloud): no hay
+        # carpeta local, cada capa se descarga de un asset de GitHub Releases
+        # (ver core/config.py > CONFIG_CAPAS[...]["url"]) y se cachea en disco.
+        url = capa_cfg.get("url")
+        if not url:
+            raise ValueError(f"La capa '{nombre}' no tiene 'url' configurada para modo nube.")
+        dir_extraido = _descargar_y_extraer_zip(url, nombre)
+        if capa_cfg["tipo"] == "tabla":
+            ruta = _ruta_dentro_de(dir_extraido, (".xlsx", ".xls"))
+            if not ruta:
+                raise FileNotFoundError(f"No se encontró un .xlsx dentro del zip descargado de '{nombre}'.")
+            valor = pd.read_excel(ruta)
+        else:
+            ruta = _ruta_dentro_de(dir_extraido, (".shp",))
+            if not ruta:
+                raise FileNotFoundError(f"No se encontró un .shp dentro del zip descargado de '{nombre}'.")
+            bbox = _bbox_para_capa(aoi, ruta) if aoi is not None else None
+            valor = leer_shp_local(ruta, columnas=capa_cfg.get("columnas"), bbox=bbox)
     elif capa_cfg["fuente"] == "local":
         if capa_cfg["tipo"] == "tabla":
             valor = pd.read_excel(capa_cfg["ruta"])

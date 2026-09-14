@@ -11,11 +11,15 @@ import os
 # Modo de operacion
 #   "demo" -> usa las capas sinteticas de demo_data/ (no requiere red).
 #   "real" -> cada capa se lee de una ruta local (incluye carpetas
-#             sincronizadas de OneDrive/SharePoint).
+#             sincronizadas de OneDrive/SharePoint) -- para correr en ESTE
+#             equipo, donde las carpetas de datos existen.
+#   "nube" -> cada capa se descarga (y cachea en disco) desde un asset de
+#             GitHub Releases -- para el deploy público (Streamlit Community
+#             Cloud u otro hosting sin acceso a las carpetas locales).
 # Por defecto queda en "real" apuntando a la carpeta de datos de este equipo,
 # igual que quedo configurado en la version R. Sobreescribible sin tocar este
 # archivo con una variable de entorno:
-#   os.environ["REPORTES_MODE"] = "demo"
+#   os.environ["REPORTES_MODE"] = "nube"
 # ------------------------------------------------------------------------------
 MODO_DATOS = os.environ.get("REPORTES_MODE", "real")
 
@@ -29,6 +33,15 @@ RUTA_CARPETA_DATOS_ADIC = os.environ.get(
     "RUTA_CARPETA_DATOS_ADIC", "D:/Intento de mejorar/Datos adicionales"
 )
 
+# Assets del release de GitHub con las capas reales comprimidas (modo "nube")
+# -- ver README > Deploy. Repo público: cualquiera con el link puede
+# descargar estos .zip, así que si en algún momento los datos dejan de poder
+# ser públicos, este release debe borrarse/pasarse a un storage privado.
+_URL_BASE_DATOS_NUBE = os.environ.get(
+    "URL_BASE_DATOS_NUBE",
+    "https://github.com/JDMA-95/reportes-sig-streamlit/releases/download/datos-v1",
+)
+
 
 def _ruta(env_var, *partes):
     return os.environ.get(env_var, os.path.join(RUTA_CARPETA_DATOS, *partes))
@@ -36,6 +49,10 @@ def _ruta(env_var, *partes):
 
 def _ruta_adic(env_var, *partes):
     return os.environ.get(env_var, os.path.join(RUTA_CARPETA_DATOS_ADIC, *partes))
+
+
+def _url_nube(env_var, nombre_zip):
+    return os.environ.get(env_var, f"{_URL_BASE_DATOS_NUBE}/{nombre_zip}.zip")
 
 
 # ------------------------------------------------------------------------------
@@ -51,6 +68,7 @@ CONFIG_CAPAS = {
             "Distrital INEI 2023 geogpsperu SuyoPomalia",
             "Distrital INEI 2023 geogpsperu SuyoPomalia.shp",
         ),
+        "url": _url_nube("URL_DISTRITOS", "distritos"),
         "cita": "INEI, 2025 — delimitación territorial (Distritos)",
     },
     "localidades": {
@@ -62,6 +80,7 @@ CONFIG_CAPAS = {
             "CCPP_GEOPERU_2017 2-sin duplicado",
             "CCPP_PERU_2017_SOCIO.shp",
         ),
+        "url": _url_nube("URL_LOCALIDADES", "localidades"),
         # Ver nota de rendimiento en el README R: esta es la capa mas pesada
         # (censo INEI 2017, cientos de columnas). "columnas" (opcional) limita
         # que columnas se leen ademas de la geometria -- ver io_capas.leer_shp_local.
@@ -72,6 +91,7 @@ CONFIG_CAPAS = {
         "tipo": "poligono",
         "fuente": "local",
         "ruta": _ruta("RUTA_LOCAL_BDPI_COMUNIDAD", "Shapefile_PPIIOO_Comunidad", "shapeComunidad.shp"),
+        "url": _url_nube("URL_COMUNIDADES_BDPI", "comunidades_bdpi"),
         "cita": "MINCUL, 2025 — Base de Datos de Pueblos Indígenas u Originarios (BDPI)",
     },
     "cp_bdpi": {
@@ -80,6 +100,7 @@ CONFIG_CAPAS = {
         "ruta": _ruta(
             "RUTA_LOCAL_BDPI_CP", "Shapefile_PPIIOO_CentroPobladoIndigena", "shapeCentroPobladoIndigena.shp"
         ),
+        "url": _url_nube("URL_CP_BDPI", "cp_bdpi"),
         "cita": "MINCUL, 2025 — Base de Datos de Pueblos Indígenas u Originarios (BDPI), Centros Poblados",
     },
     "comunidades_midagri": {
@@ -90,6 +111,7 @@ CONFIG_CAPAS = {
             "COMUNIDADES CAMPESINAS GEORURAL MIDAGRI GEOGPSPERU SUYOPOMALIA (1)",
             "COMUNIDADES CAMPESINAS GEORURAL MIDAGRI GEOGPSPERU.shp",
         ),
+        "url": _url_nube("URL_COMUNIDADES_MIDAGRI", "comunidades_midagri"),
         "cita": "MIDAGRI, GEORURAL, 2025",
     },
     "comunidades_cofopri": {
@@ -100,12 +122,14 @@ CONFIG_CAPAS = {
             "COMUNIDADES CAMPESINAS GEOLLAQTA COFOPRI GEOGPSPERU SUYOPOMALIA (1)",
             "COMUNIDADES CAMPESINAS GEOLLAQTA COFOPRI GEOGPSPERU.shp",
         ),
+        "url": _url_nube("URL_COMUNIDADES_COFOPRI", "comunidades_cofopri"),
         "cita": "COFOPRI, 2025",
     },
     "cc_excel": {
         "tipo": "tabla",
         "fuente": "local",
         "ruta": _ruta("RUTA_LOCAL_CC_EXCEL", "Consolidado de CC.xlsx"),
+        "url": _url_nube("URL_CC_EXCEL", "cc_excel"),
         "cita": "Padrón interno de comunidades campesinas (Excel)",
     },
     # --- Capas adicionales (carpeta "Datos adicionales") -----------------------
@@ -117,6 +141,7 @@ CONFIG_CAPAS = {
         # ("Pavimentado"/"Bueno"/"Red Nacional"), mismo esquema que la capa
         # departamental. La de 2024 solo tiene esos campos como códigos.
         "ruta": _ruta_adic("RUTA_LOCAL_VIAS_NACIONAL", "Red vial nacional", "red_vial_nacional_dic20.shp"),
+        "url": _url_nube("URL_VIAS_NACIONAL", "vias_nacional"),
         "cita": "MTC, dic. 2020 — Red Vial Nacional",
     },
     "vias_departamental": {
@@ -125,12 +150,14 @@ CONFIG_CAPAS = {
         "ruta": _ruta_adic(
             "RUTA_LOCAL_VIAS_DEPARTAMENTAL", "Red vial departamental", "red_vial_departamental_dic20.shp"
         ),
+        "url": _url_nube("URL_VIAS_DEPARTAMENTAL", "vias_departamental"),
         "cita": "MTC, dic. 2020 — Red Vial Departamental",
     },
     "vias_vecinal": {
         "tipo": "linea",
         "fuente": "local",
         "ruta": _ruta_adic("RUTA_LOCAL_VIAS_VECINAL", "Red vial vecinal", "RVV_Eje.shp"),
+        "url": _url_nube("URL_VIAS_VECINAL", "vias_vecinal"),
         "cita": "MTC, DS 2012 — Red Vial Vecinal",
     },
     "educacion": {
@@ -142,6 +169,7 @@ CONFIG_CAPAS = {
             "peru_conect_educacion_",
             "peru_conect_educacion_.shp",
         ),
+        "url": _url_nube("URL_EDUCACION", "educacion"),
         "cita": "MINEDU — Padrón de instituciones educativas (georreferenciado)",
     },
 }
