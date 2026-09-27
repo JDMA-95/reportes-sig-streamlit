@@ -472,65 +472,6 @@ def cruce_educacion(aoi, educacion):
 
 
 # ------------------------------------------------------------------------------
-# 5) Localidades dentro de Comunidades Campesinas (BDPI+MIDAGRI+COFOPRI) +
-#    tabla de posibles duplicidades (misma localidad, más de una fuente)
-# ------------------------------------------------------------------------------
-def cruce_localidades_en_comunidades(loc_cruce, lista_comunidades_sel):
-    loc_sel = loc_cruce.get("sf_sel")
-    if loc_sel is None or not len(loc_sel):
-        return {"detalle": pd.DataFrame(), "duplicidades": pd.DataFrame()}
-
-    cc_all_list = [x["sf_sel"] for x in lista_comunidades_sel.values() if len(x["sf_sel"])]
-    if not cc_all_list:
-        return {"detalle": pd.DataFrame(), "duplicidades": pd.DataFrame()}
-    cc_all = pd.concat([align_crs(x, loc_sel) for x in cc_all_list], ignore_index=True)
-    cc_all = gpd.GeoDataFrame(cc_all, geometry="geometry", crs=loc_sel.crs)
-
-    loc_att = loc_cruce["tabla"].copy().reset_index(drop=True)
-    loc_att["loc_id"] = range(len(loc_att))
-    loc_pts = loc_sel.copy().reset_index(drop=True)
-    loc_pts["loc_id"] = range(len(loc_pts))
-    loc_pts = loc_pts[["loc_id", "geometry"]]
-
-    ov = gpd.sjoin(
-        loc_pts, cc_all[["cc_nombre", "cc_dpto", "cc_prov", "cc_dist", "cc_fuente", "geometry"]],
-        how="inner", predicate="within",
-    )
-    if not len(ov):
-        return {"detalle": pd.DataFrame(), "duplicidades": pd.DataFrame()}
-
-    detalle = (
-        ov.drop(columns="geometry")
-        .merge(loc_att, on="loc_id", how="left")[
-            ["nom_ccpp", "categoria", "num_hogares", "distrito", "provincia", "departamento", "cc_nombre", "cc_dist", "cc_fuente"]
-        ]
-        .drop_duplicates()
-        .reset_index(drop=True)
-    )
-
-    def _resumen_grupo(g):
-        return pd.Series(
-            {
-                "n_cc": g["cc_nombre"].nunique(dropna=True),
-                "fuentes": ", ".join(sorted(g["cc_fuente"].dropna().unique())),
-                "cc_list": " | ".join(sorted(g["cc_nombre"].dropna().unique())),
-            }
-        )
-
-    duplicidades = (
-        detalle.groupby(["nom_ccpp", "categoria", "distrito", "provincia", "departamento"], dropna=False)
-        .apply(_resumen_grupo, include_groups=False)
-        .reset_index()
-    )
-    duplicidades["posible_duplicidad"] = duplicidades["n_cc"] > 1
-    duplicidades = duplicidades.sort_values(
-        ["n_cc", "provincia", "distrito", "nom_ccpp"], ascending=[False, True, True, True]
-    ).reset_index(drop=True)
-
-    return {"detalle": detalle, "duplicidades": duplicidades}
-
-
-# ------------------------------------------------------------------------------
 # 6) Verificación de comunidades MIDAGRI contra el padrón Excel (exacto + fuzzy)
 # ------------------------------------------------------------------------------
 def fuzzy_match_por_grupo(pendientes, candidatos, max_dist=2):
@@ -633,16 +574,16 @@ def ejecutar_cruces(cache, aoi, checks):
             except Exception as e:
                 resultados["distritos"] = e
 
-    if "localidades" in checks or "duplicidades" in checks:
+    if "localidades" in checks:
         resultados["localidades"] = intentar_cruce("localidades", lambda capa: cruce_localidades(aoi, capa))
 
-    if "comunidades_bdpi" in checks or "duplicidades" in checks:
+    if "comunidades_bdpi" in checks:
         resultados["comunidades_bdpi"] = intentar_cruce(
             "comunidades_bdpi",
             lambda capa: cruce_comunidad(aoi, capa, "BDPI", metodo="interseccion", tol_m=cfg.CONFIG_REPORTE["tolerancia_bdpi_m"]),
         )
 
-    if "comunidades_midagri" in checks or "duplicidades" in checks:
+    if "comunidades_midagri" in checks:
         resultados["comunidades_midagri"] = intentar_cruce(
             "comunidades_midagri",
             lambda capa: cruce_comunidad(
@@ -650,7 +591,7 @@ def ejecutar_cruces(cache, aoi, checks):
             ),
         )
 
-    if "comunidades_cofopri" in checks or "duplicidades" in checks:
+    if "comunidades_cofopri" in checks:
         resultados["comunidades_cofopri"] = intentar_cruce(
             "comunidades_cofopri", lambda capa: cruce_comunidad(aoi, capa, "COFOPRI", metodo="interseccion")
         )
@@ -690,19 +631,6 @@ def ejecutar_cruces(cache, aoi, checks):
 
     if "educacion" in checks:
         resultados["educacion"] = intentar_cruce("educacion", lambda capa: cruce_educacion(aoi, capa))
-
-    if "duplicidades" in checks:
-        fuentes_com = ["comunidades_bdpi", "comunidades_midagri", "comunidades_cofopri"]
-        lista_com = {k: resultados[k] for k in fuentes_com if k in resultados and ok_resultado(resultados[k])}
-        if ok_resultado(resultados.get("localidades")):
-            try:
-                resultados["duplicidades"] = cruce_localidades_en_comunidades(resultados["localidades"], lista_com)
-            except Exception as e:
-                resultados["duplicidades"] = e
-        else:
-            resultados["duplicidades"] = RuntimeError(
-                "No se pudo calcular porque depende del cruce de localidades, que no se pudo calcular."
-            )
 
     if "comunidades_midagri" in checks and ok_resultado(resultados.get("comunidades_midagri")):
         try:

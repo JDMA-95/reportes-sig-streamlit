@@ -205,11 +205,6 @@ CONFIG_CRUCES = [
         "capas": ["comunidades_cofopri"],
     },
     {
-        "id": "duplicidades",
-        "etiqueta": "Localidades dentro de comunidades campesinas (verificación de duplicidades entre fuentes BDPI/MIDAGRI/COFOPRI)",
-        "capas": ["localidades"],
-    },
-    {
         "id": "vias",
         "etiqueta": "Vías (red vial nacional, departamental y vecinal)",
         "capas": ["vias_nacional", "vias_departamental", "vias_vecinal", "distritos"],

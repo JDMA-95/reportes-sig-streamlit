@@ -19,6 +19,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from core import config as cfg
+from core import exportar
 from core import mapas_folium as mapas
 from core.io_capas import cargar_aoi_kml, cargar_capa, invalidar_cache_capas
 from core.procesamiento import cruce_distritos, ejecutar_cruces, ok_resultado
@@ -35,7 +36,57 @@ def _tabla(df):
     # MIDAGRI, ver README). fillna("") lo deja en blanco, más limpio.
     st.dataframe(df.fillna(""), width="stretch", hide_index=True)
 
-st.set_page_config(page_title=cfg.CONFIG_REPORTE["titulo_reporte"], layout="wide")
+st.set_page_config(page_title=cfg.CONFIG_REPORTE["titulo_reporte"], page_icon="🗺️", layout="wide")
+
+# ------------------------------------------------------------------------------
+# Estilos -- Streamlit por defecto se ve muy genérico (Arial + widgets planos
+# sin identidad). Este bloque cubre 3 cosas SEGURAS (no dependen de clases
+# internas de Streamlit, que cambian entre versiones):
+#   1) un header propio (simple <div> nuestro, control total),
+#   2) reforzar con CSS lo que .streamlit/config.toml ya tematiza (radios,
+#      tarjetas de métricas, dataframes) usando selectores por ROL/ARIA o
+#      data-testid, estables entre versiones,
+#   3) recorte del padding-top por defecto (Streamlit deja mucho aire arriba).
+# ------------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1200px; }
+
+    .app-header {
+        display: flex; align-items: center; gap: 1rem;
+        padding: 1.15rem 1.5rem; border-radius: 16px; margin-bottom: 1.1rem;
+        background: linear-gradient(135deg, #2F6F5E 0%, #1F4E42 100%);
+        box-shadow: 0 6px 18px rgba(31,78,66,0.22);
+    }
+    .app-header-icon { font-size: 2.3rem; line-height: 1; }
+    .app-header-title { color: #ffffff; font-size: 1.55rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+    .app-header-subtitle { color: rgba(255,255,255,0.88); font-size: 0.88rem; margin-top: 0.2rem; }
+    .app-header-badge {
+        margin-left: auto; background: rgba(255,255,255,0.16); color: #fff;
+        border: 1px solid rgba(255,255,255,0.4); padding: 0.3rem 0.85rem;
+        border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+        letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+    }
+
+    div[role="radiogroup"] { gap: 0.4rem; flex-wrap: wrap; row-gap: 0.5rem; }
+    div[role="radiogroup"] label {
+        background: #EEF3F1; border: 1px solid #DCE7E3; border-radius: 999px;
+        padding: 0.45rem 1rem; transition: border-color .15s ease, background .15s ease;
+    }
+    div[role="radiogroup"] label:hover { border-color: #2F6F5E; }
+    div[role="radiogroup"] label > div:first-child { display: none; }
+    div[role="radiogroup"] label:has(input:checked) { background: #2F6F5E; border-color: #2F6F5E; }
+    div[role="radiogroup"] label:has(input:checked) p { color: #ffffff !important; font-weight: 600; }
+
+    [data-testid="stMetric"] {
+        background: #ffffff; border: 1px solid #E3E8E6; border-radius: 12px; padding: 0.7rem 1rem;
+    }
+    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ------------------------------------------------------------------------------
 # Estado de sesión (equivalente a las reactives de Shiny)
@@ -48,18 +99,31 @@ st.session_state.setdefault("ubicacion_tabla", None)
 
 ETIQUETAS = cfg.etiquetas_cruces()
 
-st.title(cfg.CONFIG_REPORTE["titulo_reporte"])
-st.caption(
-    "Capas base: carpeta local / OneDrive-SharePoint sincronizado"
-    if cfg.MODO_DATOS == "real"
-    else "Capas base: datos de demostración (local)"
+_SUBTITULO_MODO = {
+    "real": "Capas base: carpeta local / OneDrive-SharePoint sincronizado",
+    "demo": "Capas base: datos de demostración (local)",
+    "nube": "Capas base: descargadas desde almacenamiento en la nube",
+}
+st.markdown(
+    f"""
+    <div class="app-header">
+        <div class="app-header-icon">🗺️</div>
+        <div>
+            <p class="app-header-title">{cfg.CONFIG_REPORTE["titulo_reporte"]}</p>
+            <p class="app-header-subtitle">Cruce espacial de capas sociales, ambientales y de infraestructura sobre tu área de estudio</p>
+        </div>
+        <div class="app-header-badge">Modo {cfg.MODO_DATOS}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
+st.caption(_SUBTITULO_MODO.get(cfg.MODO_DATOS, ""))
 
 # ------------------------------------------------------------------------------
 # SIDEBAR
 # ------------------------------------------------------------------------------
 with st.sidebar:
-    st.header("1. Área de estudio")
+    st.markdown("### 📂 1. Área de estudio")
     kml_file = st.file_uploader("Subir archivo KML", type=["kml"])
 
     if kml_file is not None:
@@ -98,7 +162,7 @@ with st.sidebar:
             )
 
     st.markdown("---")
-    st.header("2. Cruces a consultar")
+    st.markdown("### 🧭 2. Cruces a consultar")
     checks_sel = [
         cid for cid in cfg.nombres_cruces() if st.checkbox(ETIQUETAS[cid], value=True, key=f"chk_{cid}")
     ]
@@ -137,7 +201,23 @@ if resultado is None:
     st.info('Sube un KML, elige los cruces y presiona "Ejecutar análisis".')
 else:
     errores = [k for k, v in resultado["resultados"].items() if isinstance(v, Exception)]
-    st.markdown(f"**Cruces ejecutados:** {len(resultado['checks'])}")
+    ok_count = len(resultado["checks"]) - len(errores)
+
+    col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
+    col_m1.metric("✅ Cruces con resultado", ok_count)
+    col_m2.metric("⚠️ Con errores", len(errores))
+    with col_m3:
+        excel_bytes = exportar.construir_excel(resultado)
+        if excel_bytes:
+            st.write("")  # alinea verticalmente el botón con las métricas
+            st.download_button(
+                "⬇ Descargar todo (Excel)",
+                data=excel_bytes,
+                file_name="reportes_sig_resultados.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
     if errores:
         st.markdown(f":red[No se pudieron calcular: {', '.join(ETIQUETAS.get(k, k) for k in errores)}]")
 
@@ -163,11 +243,22 @@ def chequear(id_):
 # Con un selector + if/elif, en cambio, solo se ejecuta (y solo existe en el
 # DOM) el bloque de la sección activa -- su mapa nunca se crea oculto.
 SECCIONES = [
-    "Distritos", "Localidades", "Comunidades BDPI", "Centros poblados BDPI",
-    "Comunidades MIDAGRI", "Comunidades COFOPRI", "Duplicidades",
-    "Vías", "Centros educativos",
+    "Distritos", "Localidades", "Comunidades", "Vías", "Centros educativos",
 ]
-seccion = st.radio("Sección", SECCIONES, horizontal=True, label_visibility="collapsed")
+_ICONO_SECCION = {
+    "Distritos": "🗺️",
+    "Localidades": "🏘️",
+    "Comunidades": "🌿",
+    "Vías": "🛣️",
+    "Centros educativos": "🎓",
+}
+seccion = st.radio(
+    "Sección",
+    SECCIONES,
+    horizontal=True,
+    label_visibility="collapsed",
+    format_func=lambda s: f"{_ICONO_SECCION.get(s, '')}  {s}",
+)
 st.markdown("---")
 
 if seccion == "Distritos":
@@ -190,65 +281,67 @@ elif seccion == "Localidades":
         else:
             st.caption("No se encontraron localidades en el área de estudio.")
 
-elif seccion == "Comunidades BDPI":
-    r = chequear("comunidades_bdpi")
-    if r is not None:
-        if len(r["tabla"]):
-            _tabla(r["tabla"])
-            _mostrar_mapa(
-                mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades BDPI"),
-                "mapa_bdpi",
-            )
-        else:
-            st.caption("No se identifican comunidades BDPI en el área de estudio.")
+elif seccion == "Comunidades":
+    _SUB_COMUNIDADES = ["BDPI", "Centros poblados BDPI", "MIDAGRI", "COFOPRI"]
+    _ICONO_SUB_COMUNIDADES = {"BDPI": "🌿", "Centros poblados BDPI": "📍", "MIDAGRI": "🌾", "COFOPRI": "🏞️"}
+    sub = st.radio(
+        "Comunidad",
+        _SUB_COMUNIDADES,
+        horizontal=True,
+        label_visibility="collapsed",
+        format_func=lambda s: f"{_ICONO_SUB_COMUNIDADES.get(s, '')}  {s}",
+        key="sub_comunidades",
+    )
+    st.write("")
 
-elif seccion == "Centros poblados BDPI":
-    r = chequear("cp_bdpi")
-    if r is not None:
-        if len(r["tabla"]):
-            _tabla(r["tabla"])
-            _mostrar_mapa(mapas.mapa_folium_cp_bdpi(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"]), "mapa_cpbdpi")
-        else:
-            st.caption("No se identifican centros poblados indígenas en el área de estudio.")
+    if sub == "BDPI":
+        r = chequear("comunidades_bdpi")
+        if r is not None:
+            if len(r["tabla"]):
+                _tabla(r["tabla"])
+                _mostrar_mapa(
+                    mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades BDPI"),
+                    "mapa_bdpi",
+                )
+            else:
+                st.caption("No se identifican comunidades BDPI en el área de estudio.")
 
-elif seccion == "Comunidades MIDAGRI":
-    r = chequear("comunidades_midagri")
-    if r is not None:
-        if len(r["tabla"]):
-            _tabla(r["tabla"])
-            midagri_excel = resultado["resultados"].get("midagri_excel")
-            if midagri_excel is not None and len(midagri_excel):
-                st.markdown("##### Verificación contra padrón Excel")
-                _tabla(midagri_excel)
-            _mostrar_mapa(
-                mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades MIDAGRI"),
-                "mapa_midagri",
-            )
-        else:
-            st.caption("No se identifican comunidades MIDAGRI dentro/cerca del área de estudio.")
+    elif sub == "Centros poblados BDPI":
+        r = chequear("cp_bdpi")
+        if r is not None:
+            if len(r["tabla"]):
+                _tabla(r["tabla"])
+                _mostrar_mapa(mapas.mapa_folium_cp_bdpi(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"]), "mapa_cpbdpi")
+            else:
+                st.caption("No se identifican centros poblados indígenas en el área de estudio.")
 
-elif seccion == "Comunidades COFOPRI":
-    r = chequear("comunidades_cofopri")
-    if r is not None:
-        if len(r["tabla"]):
-            _tabla(r["tabla"])
-            _mostrar_mapa(
-                mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades COFOPRI"),
-                "mapa_cofopri",
-            )
-        else:
-            st.caption("No se identifican comunidades COFOPRI en el área de estudio.")
+    elif sub == "MIDAGRI":
+        r = chequear("comunidades_midagri")
+        if r is not None:
+            if len(r["tabla"]):
+                _tabla(r["tabla"])
+                midagri_excel = resultado["resultados"].get("midagri_excel")
+                if midagri_excel is not None and len(midagri_excel):
+                    st.markdown("##### Verificación contra padrón Excel")
+                    _tabla(midagri_excel)
+                _mostrar_mapa(
+                    mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades MIDAGRI"),
+                    "mapa_midagri",
+                )
+            else:
+                st.caption("No se identifican comunidades MIDAGRI dentro/cerca del área de estudio.")
 
-elif seccion == "Duplicidades":
-    r = chequear("duplicidades")
-    if r is not None:
-        if len(r["detalle"]):
-            st.markdown("##### Localidades dentro de comunidades campesinas")
-            _tabla(r["detalle"])
-            st.markdown("##### Posibles duplicidades")
-            _tabla(r["duplicidades"])
-        else:
-            st.caption("No se identifican localidades dentro de comunidades campesinas.")
+    elif sub == "COFOPRI":
+        r = chequear("comunidades_cofopri")
+        if r is not None:
+            if len(r["tabla"]):
+                _tabla(r["tabla"])
+                _mostrar_mapa(
+                    mapas.mapa_folium_comunidad(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"], "Comunidades COFOPRI"),
+                    "mapa_cofopri",
+                )
+            else:
+                st.caption("No se identifican comunidades COFOPRI en el área de estudio.")
 
 elif seccion == "Vías":
     r = chequear("vias")

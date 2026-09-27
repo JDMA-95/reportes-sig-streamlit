@@ -4,8 +4,8 @@ Migración a Python/Streamlit de la app R/Shiny `reportes_sig` (ver
 `../reportes_sig/reportes_sig/`): el usuario sube el **área de estudio
 (KML)**, marca qué **cruces** de información social quiere consultar
 (distritos, localidades, comunidades BDPI/MIDAGRI/COFOPRI, centros poblados
-indígenas, duplicidades entre fuentes, **vías** y **centros educativos**) y
-ve tablas + mapas por cada uno.
+indígenas, **vías** y **centros educativos**) y ve tablas + mapas por cada
+uno.
 
 Las dos últimas capas (vías + centros educativos) no existen en la versión
 R: sus shapefiles viven en `../Datos adicionales/` y se configuran con
@@ -93,7 +93,14 @@ del Release a un storage privado (ya no bastaría con la URL pública tal
 cual), y (c) en Streamlit Cloud, la app tendría que autenticar la descarga
 (ej. con un token en Secrets).
 
-## 5. Diferencias conocidas frente a la versión R
+## 5. Descarga de resultados
+
+**"⬇ Descargar todo (Excel)"** aparece junto al resumen de cruces
+ejecutados. Arma un único `.xlsx` en memoria (`core/exportar.py`) con una
+hoja por cada tabla de cada cruce con resultados — reemplaza en espíritu al
+reporte PDF de la versión R (descontinuado, ver más abajo).
+
+## 6. Diferencias conocidas frente a la versión R
 
 - **Sin reporte PDF**: la versión R ya tampoco lo expone en su interfaz (se
   quitó por problemas de LaTeX en la red del usuario); si se necesita en
