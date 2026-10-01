@@ -308,3 +308,41 @@ def mapa_folium_educacion(aoi, distritos, sf_sel):
         grupo.add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
     return m
+
+
+# ------------------------------------------------------------------------------
+# Mapa: Salud -- capas de referencia visual (WMS, IDEP/GeoPerú, subsistema de
+# salud: hospitales, institutos, centros y puestos de salud, otros). Mismo
+# caso que _agregar_wms_ccpp_2025(): el WFS de este geoserver está bloqueado
+# por Cloudflare (confirmado -- GetCapabilities de WFS da 403 en cualquier
+# variante, mientras que WMS sí responde), así que solo se pueden mostrar
+# como overlays de imagen, no como tabla/cruce con datos por establecimiento.
+# ------------------------------------------------------------------------------
+_WMS_SALUD_BASE = "https://espacialg.geoperu.gob.pe/geoserver/subsistemas/{capa}/wms"
+_CAPAS_SALUD = [
+    {"id": "20260722170222___Hospitales_may26", "nombre": "Hospitales"},
+    {"id": "20260722150934___Institutos_may26", "nombre": "Institutos"},
+    {"id": "20260724084414___Centros_salud_may26", "nombre": "Centros de salud"},
+    {"id": "20260724112827___Puestos_salud_may26", "nombre": "Puestos de salud"},
+    {"id": "20260724113021___Otros_may26", "nombre": "Otros establecimientos"},
+]
+
+
+def mapa_folium_salud(aoi, distritos):
+    m = _base_folium(aoi, distritos)
+    for capa in _CAPAS_SALUD:
+        folium.raster_layers.WmsTileLayer(
+            url=_WMS_SALUD_BASE.format(capa=capa["id"]),
+            layers=capa["id"],
+            styles=f"subsistemas:sld_{capa['id']}",
+            fmt="image/png",
+            transparent=True,
+            version="1.3.0",
+            name=f"🏥 {capa['nombre']} — IDEP",
+            attr="IDEP / GeoPerú",
+            overlay=True,
+            control=True,
+            show=True,
+        ).add_to(m)
+    folium.LayerControl(collapsed=False).add_to(m)
+    return m

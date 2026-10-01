@@ -284,7 +284,7 @@ def chequear(id_):
 # Con un selector + if/elif, en cambio, solo se ejecuta (y solo existe en el
 # DOM) el bloque de la sección activa -- su mapa nunca se crea oculto.
 SECCIONES = [
-    "Distritos", "Localidades", "Comunidades", "Vías", "Centros educativos",
+    "Distritos", "Localidades", "Comunidades", "Vías", "Centros educativos", "Salud",
 ]
 _ICONO_SECCION = {
     "Distritos": "🗺️",
@@ -292,6 +292,7 @@ _ICONO_SECCION = {
     "Comunidades": "🌿",
     "Vías": "🛣️",
     "Centros educativos": "🎓",
+    "Salud": "🏥",
 }
 seccion = st.radio(
     "Sección",
@@ -403,3 +404,19 @@ elif seccion == "Centros educativos":
             _mostrar_mapa(mapas.mapa_folium_educacion(resultado["aoi"], resultado["distritos_capa"], r["sf_sel"]), "mapa_educacion")
         else:
             st.caption("No se identifican centros educativos en el área de estudio.")
+
+elif seccion == "Salud":
+    # A diferencia de las demás secciones, esta NO es un cruce con tabla: son
+    # capas de referencia visual (WMS, IDEP/GeoPerú) -- el WFS de ese
+    # geoserver está bloqueado por Cloudflare, así que no se puede traer como
+    # datos por establecimiento, solo mostrarse superpuesta en el mapa.
+    st.caption(
+        "Hospitales, institutos, centros y puestos de salud (IDEP/GeoPerú) -- "
+        "capas de referencia visual, activables/desactivables desde el control "
+        "de capas. No hay tabla porque el servidor no permite descargar los "
+        "datos por establecimiento (solo la imagen del mapa)."
+    )
+    if resultado is None:
+        st.caption('Sube un KML y presiona "Ejecutar análisis" para centrar el mapa en tu área de estudio.')
+    else:
+        _mostrar_mapa(mapas.mapa_folium_salud(resultado["aoi"], resultado["distritos_capa"]), "mapa_salud")
