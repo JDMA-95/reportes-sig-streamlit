@@ -20,6 +20,33 @@ from .procesamiento import align_crs, aoi_polygon
 
 _MARGEN_ZOOM = 0.15
 
+# Capa de referencia visual "Centros poblados (Censo 2025)" del geoserver de
+# IDEP/GeoPerú -- más reciente que la capa de localidades que usa la app
+# (Censo 2017 INEI). Solo overlay WMS (imagen), NO se puede traer como datos
+# vectoriales a la tabla: el WFS de ese servidor está bloqueado por Cloudflare
+# (probado: GetCapabilities de WFS devuelve 403 en cualquier variante, aunque
+# WMS sí responde). Se agrega apagada por defecto (show=False) para no tapar
+# la capa calculada; el usuario la activa desde el control de capas.
+_WMS_CCPP_2025_URL = "https://espacialg.geoperu.gob.pe/geoserver/geoperu/peru_ccpp_mayor_/wms"
+_WMS_CCPP_2025_LAYER = "peru_ccpp_mayor_"
+_WMS_CCPP_2025_STYLE = "geoperu:peru_ccpp_mayor_sld"
+
+
+def _agregar_wms_ccpp_2025(m):
+    folium.raster_layers.WmsTileLayer(
+        url=_WMS_CCPP_2025_URL,
+        layers=_WMS_CCPP_2025_LAYER,
+        styles=_WMS_CCPP_2025_STYLE,
+        fmt="image/png",
+        transparent=True,
+        version="1.3.0",
+        name="Centros poblados (Censo 2025) — IDEP, referencia",
+        attr="IDEP / GeoPerú",
+        overlay=True,
+        control=True,
+        show=False,
+    ).add_to(m)
+
 
 def _paleta_hex(etiqueta_capa, nombres):
     niveles = sorted(set(nombres))
@@ -159,6 +186,7 @@ def mapa_folium_localidades(aoi, distritos, loc_sel):
         if etiqueta:
             etiqueta.add_to(grupo)
     grupo.add_to(m)
+    _agregar_wms_ccpp_2025(m)
     folium.LayerControl(collapsed=False).add_to(m)
     return m
 

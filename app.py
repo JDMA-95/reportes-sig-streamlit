@@ -36,53 +36,94 @@ def _tabla(df):
     # MIDAGRI, ver README). fillna("") lo deja en blanco, más limpio.
     st.dataframe(df.fillna(""), width="stretch", hide_index=True)
 
+
+def _encabezado_sidebar(icono, texto, badge=None):
+    """Header de sección del sidebar con el mismo patrón visual que GEOPERÚ:
+    icono + texto en negrita + badge circular opcional con un conteo."""
+    html_badge = f'<span class="count-badge">{badge}</span>' if badge else ""
+    st.markdown(
+        f'<div class="sidebar-heading">{icono} <span class="sidebar-heading-text">{texto}</span>{html_badge}</div>',
+        unsafe_allow_html=True,
+    )
+
 st.set_page_config(page_title=cfg.CONFIG_REPORTE["titulo_reporte"], page_icon="🗺️", layout="wide")
 
 # ------------------------------------------------------------------------------
-# Estilos -- Streamlit por defecto se ve muy genérico (Arial + widgets planos
-# sin identidad). Este bloque cubre 3 cosas SEGURAS (no dependen de clases
-# internas de Streamlit, que cambian entre versiones):
-#   1) un header propio (simple <div> nuestro, control total),
-#   2) reforzar con CSS lo que .streamlit/config.toml ya tematiza (radios,
-#      tarjetas de métricas, dataframes) usando selectores por ROL/ARIA o
-#      data-testid, estables entre versiones,
-#   3) recorte del padding-top por defecto (Streamlit deja mucho aire arriba).
+# Estilos -- réplica del lenguaje visual del visor GEOPERÚ (visor.geoperu.gob.pe):
+# navbar blanca con logo+wordmark, paneles tipo tarjeta blanca con sombra suave,
+# headers en negrita con color de acento, badges numerados circulares, pills de
+# navegación sólidas cuando están activas -- pero con los colores de marca de
+# Ausenco (cian #1AAFE2 + negro, tomados de ausenco.com) en vez del azul gob.pe.
+# Son 3 cosas SEGURAS (no dependen de clases internas de Streamlit, que cambian
+# entre versiones): 1) un header propio (<div> nuestro, control total),
+# 2) CSS sobre selectores por ROL/ARIA o data-testid (estables entre versiones),
+# 3) recorte del padding-top por defecto.
 # ------------------------------------------------------------------------------
+_AUSENCO_CIAN = "#1AAFE2"
+_AUSENCO_NEGRO = "#101820"
 st.markdown(
-    """
+    f"""
     <style>
-    .block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1200px; }
+    .block-container {{ padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 
-    .app-header {
-        display: flex; align-items: center; gap: 1rem;
-        padding: 1.15rem 1.5rem; border-radius: 16px; margin-bottom: 1.1rem;
-        background: linear-gradient(135deg, #2F6F5E 0%, #1F4E42 100%);
-        box-shadow: 0 6px 18px rgba(31,78,66,0.22);
-    }
-    .app-header-icon { font-size: 2.3rem; line-height: 1; }
-    .app-header-title { color: #ffffff; font-size: 1.55rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
-    .app-header-subtitle { color: rgba(255,255,255,0.88); font-size: 0.88rem; margin-top: 0.2rem; }
-    .app-header-badge {
-        margin-left: auto; background: rgba(255,255,255,0.16); color: #fff;
-        border: 1px solid rgba(255,255,255,0.4); padding: 0.3rem 0.85rem;
-        border-radius: 999px; font-size: 0.72rem; font-weight: 700;
-        letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
-    }
+    /* ---- Navbar estilo GEOPERÚ: blanca, logo + wordmark, borde inferior ---- */
+    .app-header {{
+        display: flex; align-items: center; gap: 0.9rem;
+        padding: 0.9rem 1.3rem; border-radius: 14px; margin-bottom: 1.1rem;
+        background: #ffffff; border: 1px solid #E5E9EB;
+        box-shadow: 0 2px 10px rgba(16,24,32,0.06);
+    }}
+    .app-header-icon {{
+        font-size: 1.5rem; line-height: 1; width: 2.6rem; height: 2.6rem;
+        display: flex; align-items: center; justify-content: center;
+        background: {_AUSENCO_NEGRO}; border-radius: 10px; flex-shrink: 0;
+    }}
+    .app-header-title {{ color: {_AUSENCO_NEGRO}; font-size: 1.35rem; font-weight: 800; margin: 0; letter-spacing: -0.01em; }}
+    .app-header-subtitle {{ color: #667085; font-size: 0.85rem; margin-top: 0.1rem; }}
 
-    div[role="radiogroup"] { gap: 0.4rem; flex-wrap: wrap; row-gap: 0.5rem; }
-    div[role="radiogroup"] label {
-        background: #EEF3F1; border: 1px solid #DCE7E3; border-radius: 999px;
+    /* ---- Eyebrow / micro-etiqueta tipo "NAVEGACIÓN" del sidebar GEOPERÚ ---- */
+    .eyebrow {{
+        color: #98A2B3; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+        text-transform: uppercase; margin: 0.2rem 0 0.4rem 0;
+    }}
+    .sidebar-heading {{ display: flex; align-items: center; gap: 0.45rem; margin: 0; }}
+    .sidebar-heading-text {{ color: {_AUSENCO_NEGRO}; font-weight: 700; font-size: 1rem; }}
+    .count-badge {{
+        background: {_AUSENCO_CIAN}; color: #fff; font-size: 0.68rem; font-weight: 700;
+        border-radius: 999px; min-width: 1.3rem; height: 1.3rem; padding: 0 0.4rem;
+        display: inline-flex; align-items: center; justify-content: center;
+    }}
+
+    /* ---- Navegación por secciones: pills (igual criterio que filas activas
+    de GEOPERÚ: sólidas con el color de acento cuando están seleccionadas) ---- */
+    div[role="radiogroup"] {{ gap: 0.4rem; flex-wrap: wrap; row-gap: 0.5rem; }}
+    div[role="radiogroup"] label {{
+        background: #ffffff; border: 1px solid #E5E9EB; border-radius: 999px;
         padding: 0.45rem 1rem; transition: border-color .15s ease, background .15s ease;
-    }
-    div[role="radiogroup"] label:hover { border-color: #2F6F5E; }
-    div[role="radiogroup"] label > div:first-child { display: none; }
-    div[role="radiogroup"] label:has(input:checked) { background: #2F6F5E; border-color: #2F6F5E; }
-    div[role="radiogroup"] label:has(input:checked) p { color: #ffffff !important; font-weight: 600; }
+    }}
+    div[role="radiogroup"] label:hover {{ border-color: {_AUSENCO_CIAN}; }}
+    div[role="radiogroup"] label > div:first-child {{ display: none; }}
+    div[role="radiogroup"] label:has(input:checked) {{ background: {_AUSENCO_CIAN}; border-color: {_AUSENCO_CIAN}; }}
+    div[role="radiogroup"] label:has(input:checked) p {{ color: #ffffff !important; font-weight: 600; }}
 
-    [data-testid="stMetric"] {
-        background: #ffffff; border: 1px solid #E3E8E6; border-radius: 12px; padding: 0.7rem 1rem;
-    }
-    [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
+    /* ---- Tarjetas (métricas, contenedores, expanders, dataframes): mismo
+    look de "panel flotante" blanco + sombra suave que usa GEOPERÚ para la
+    leyenda/notificaciones ---- */
+    [data-testid="stMetric"] {{
+        background: #ffffff; border: 1px solid #E5E9EB; border-radius: 12px;
+        padding: 0.7rem 1rem; box-shadow: 0 2px 8px rgba(16,24,32,0.04);
+    }}
+    [data-testid="stDataFrame"] {{ border-radius: 10px; overflow: hidden; border: 1px solid #E5E9EB; }}
+    [data-testid="stVerticalBlockBorderWrapper"] {{ box-shadow: 0 2px 8px rgba(16,24,32,0.04); }}
+    [data-testid="stExpander"] {{
+        border: 1px solid #E5E9EB !important; border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(16,24,32,0.04);
+    }}
+
+    /* ---- Botones primarios: cian sólido, mismo peso que "Entrar al visor" ---- */
+    .stButton > button[kind="primary"], .stDownloadButton > button {{
+        background: {_AUSENCO_CIAN}; border-color: {_AUSENCO_CIAN}; font-weight: 600;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -100,7 +141,7 @@ st.session_state.setdefault("ubicacion_tabla", None)
 ETIQUETAS = cfg.etiquetas_cruces()
 
 _SUBTITULO_MODO = {
-    "real": "Capas base: carpeta local / OneDrive-SharePoint sincronizado",
+    "real": "Capas base: carpeta local",
     "demo": "Capas base: datos de demostración (local)",
     "nube": "Capas base: descargadas desde almacenamiento en la nube",
 }
@@ -110,20 +151,19 @@ st.markdown(
         <div class="app-header-icon">🗺️</div>
         <div>
             <p class="app-header-title">{cfg.CONFIG_REPORTE["titulo_reporte"]}</p>
-            <p class="app-header-subtitle">Cruce espacial de capas sociales, ambientales y de infraestructura sobre tu área de estudio</p>
+            <p class="app-header-subtitle">{_SUBTITULO_MODO.get(cfg.MODO_DATOS, "")}</p>
         </div>
-        <div class="app-header-badge">Modo {cfg.MODO_DATOS}</div>
     </div>
     """,
     unsafe_allow_html=True,
 )
-st.caption(_SUBTITULO_MODO.get(cfg.MODO_DATOS, ""))
 
 # ------------------------------------------------------------------------------
 # SIDEBAR
 # ------------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### 📂 1. Área de estudio")
+    st.markdown('<p class="eyebrow">Navegación</p>', unsafe_allow_html=True)
+    _encabezado_sidebar("📂", "1. Área de estudio")
     kml_file = st.file_uploader("Subir archivo KML", type=["kml"])
 
     if kml_file is not None:
@@ -162,7 +202,8 @@ with st.sidebar:
             )
 
     st.markdown("---")
-    st.markdown("### 🧭 2. Cruces a consultar")
+    _n_activos = sum(1 for cid in cfg.nombres_cruces() if st.session_state.get(f"chk_{cid}", True))
+    _encabezado_sidebar("🧭", "2. Cruces a consultar", badge=_n_activos)
     checks_sel = [
         cid for cid in cfg.nombres_cruces() if st.checkbox(ETIQUETAS[cid], value=True, key=f"chk_{cid}")
     ]
